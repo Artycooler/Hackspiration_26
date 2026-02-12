@@ -1,3 +1,4 @@
+
 properties = [
     {"id":1,"rent":15000,"risk":"LOW"},
     {"id":2,"rent":22000,"risk":"MEDIUM"},
