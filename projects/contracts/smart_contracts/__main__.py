@@ -1,8 +1,11 @@
 import dataclasses
 import importlib
 import logging
+import os
+import stat
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 from shutil import rmtree
@@ -93,7 +96,33 @@ def build(output_dir: Path, contract_path: Path) -> Path:
     """
     output_dir = output_dir.resolve()
     if output_dir.exists():
-        rmtree(output_dir)
+        # Robust deletion handling for Windows file locks
+        max_retries = 3
+        deletion_successful = False
+        
+        for attempt in range(max_retries):
+            try:
+                # Try standard rmtree
+                rmtree(output_dir)
+                deletion_successful = True
+                break
+            except PermissionError:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)  # Wait before retrying
+                    # Try to change file permissions recursively
+                    try:
+                        for filepath in output_dir.rglob("*"):
+                            try:
+                                os.chmod(filepath, stat.S_IWUSR | stat.S_IREAD)
+                            except (OSError, PermissionError):
+                                pass
+                    except Exception:
+                        pass
+        
+        if not deletion_successful:
+            # Last resort: skip deletion, algokit will overwrite files anyway
+            logger.warning(f"Could not delete {output_dir} (files locked), will overwrite instead...")
+    
     output_dir.mkdir(exist_ok=True, parents=True)
     logger.info(f"Exporting {contract_path} to {output_dir}")
 
